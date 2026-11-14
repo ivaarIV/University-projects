@@ -62,6 +62,33 @@ fn read_name(message: &str) -> Option<String> {
         println!("Name can't be empty.");
     }
 }
+
+
+fn show_status(status: &AccountStatus) {
+    match status {
+        AccountStatus::Active => println!("status: Active"),
+        AccountStatus::Frozen => println!("status: Frozen"),
+    }
+}
+
+fn find_account(accounts: &[Account], id: u64) -> Option<&Account> {
+    for account in accounts {
+        if account.id == id {
+            show_account(account);
+            return Some(account);
+        }
+    }
+    None
+}
+
+fn show_account(account: &Account) {
+    println!("================Account information===================");
+
+    println!("id: {}", account.id);
+    println!("name: {}", account.owner_name);
+    println!("balance: {}", account.balance);
+    show_status(&account.status)
+}
 //----------------------------------------------------------------------------------------
 
 fn create_account(accounts: &mut Vec<Account>, next_id: &mut u64 ) { 
@@ -89,6 +116,31 @@ fn create_account(accounts: &mut Vec<Account>, next_id: &mut u64 ) {
 
     println!("Your account has been created successfully.");
     println!("Your account id: {}", id);
+}
+
+fn list_accounts(accounts: &[Account]) {
+    if accounts.is_empty() { 
+        println!("No account has been created yet.");
+        return;
+    }
+    for account in accounts {
+        println!("id: {}", account.id);
+        println!("name: {}", account.owner_name);
+        println!("balance: {}", account.balance);
+        show_status(&account.status);
+    }
+}
+
+fn find_account_menu(accounts: &[Account]) {
+    let id = match read_number("Enter account ID: ") {
+         Some(value) => value,
+        None => return,
+    };
+
+    match find_account(accounts, id) {
+        Some(account) => show_account(account),
+        None => println!("Account not found."),
+    }
 }
 
 //---------------------------------------------------------------------------------------
@@ -137,6 +189,8 @@ fn main() {
                 println!("Goodbye!");
                 break; }
              1 => create_account(&mut accounts, &mut next_id),
+             2 => list_accounts(&accounts),
+             3 => find_account_menu(&accounts),
              _ => {
                 println!(" Unknown option. Please enter a number from 0 to 13.");}
         }
