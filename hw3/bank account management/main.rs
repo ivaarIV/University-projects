@@ -89,6 +89,150 @@ fn show_account(account: &Account) {
     println!("balance: {}", account.balance);
     show_status(&account.status)
 }
+
+
+fn deposit(accounts: &mut Vec<Account>, transactions: &mut Vec<Transaction>, id: u64, amount: u64) -> Result<(), BankError> {
+    if amount == 0 { return Err(BankError::InvalidAmount); }
+
+    let mut index = None;
+    for i in 0..accounts.len() {
+        if accounts[i].id == id {
+          index = Some(i);
+          break;
+        }
+    }
+    let index = match index {
+        Some(i) => i,
+        None => return  Err(BankError::AccountNotFound), 
+    };
+
+    accounts[index].balance += amount;
+
+    transactions.push(Transaction {
+        account_id: id,
+        kind: TransactionKind::Deposit,
+        amount: amount,
+    });
+
+    Ok(())
+}
+
+fn withdraw(accounts: &mut Vec<Account>, transactions: &mut Vec<Transaction>, id: u64, amount: u64) -> Result<(), BankError> {
+    if amount == 0 { return Err(BankError::InvalidAmount); }
+
+    let mut index = None;
+
+    for i in 0..accounts.len() {
+        if accounts[i].id == id {
+            index = Some(i);
+            break;
+        }
+    }
+    let index = match index {
+        Some(i) => i,
+        None => return Err(BankError::AccountNotFound),
+    };
+
+    if matches!(&accounts[index].status, AccountStatus::Frozen) {
+        return Err(BankError::AccountFrozen);
+    }
+
+    if amount > accounts[index].balance {
+        return Err(BankError::InsufficientFunds);
+    }
+
+    accounts[index].balance -= amount;
+
+    transactions.push(Transaction {
+        account_id: id,
+        kind: TransactionKind::Withdraw,
+        amount: amount,
+    });
+
+    Ok(())
+}
+
+fn transfer(accounts: &mut Vec<Account>, transactions: &mut Vec<Transaction>, from_id: u64, to_id: u64, amount: u64) -> Result<(), BankError> {
+    if amount == 0 { return Err(BankError::InvalidAmount); }
+
+    if from_id == to_id {
+        return Err(BankError::SameAccount);
+    }
+
+    let mut from_index = None;
+    let mut to_index = None;
+
+    for i in 0..accounts.len() {
+        if accounts[i].id == from_id {
+            from_index = Some(i);
+        }
+
+        if accounts[i].id == to_id {
+            to_index = Some(i);
+        }
+    }
+
+    let from_index = match from_index {
+        Some(i) => i,
+        None => return Err(BankError::AccountNotFound),
+    };
+
+    let to_index = match to_index {
+        Some(i) => i,
+        None => return Err(BankError::AccountNotFound),
+    };
+
+    if matches!(&accounts[from_index].status, AccountStatus::Frozen) {
+        return Err(BankError::AccountFrozen);
+    }
+
+    if amount > accounts[from_index].balance {
+        return Err(BankError::InsufficientFunds);
+    }
+
+    accounts[from_index].balance -= amount;
+    accounts[to_index].balance += amount;
+
+    transactions.push(Transaction {
+        account_id: from_id,
+        kind: TransactionKind::TransferOut,
+        amount: amount,
+    });
+
+    transactions.push(Transaction {
+        account_id: to_id,
+        kind: TransactionKind::TransferIn,
+        amount: amount,
+    });
+
+    Ok(())
+}
+
+fn show_result(result: Result<(), BankError>) {
+    match result {
+        Ok(()) => println!("Operation completed successfully."),
+
+        Err(BankError::InvalidAmount) => {
+            println!("Error: Amount must be greater than zero.");
+        }
+
+        Err(BankError::AccountNotFound) => {
+            println!("Error: Account not found.");
+        }
+
+        Err(BankError::InsufficientFunds) => {
+            println!("Error: Insufficient funds.");
+        }
+
+        Err(BankError::AccountFrozen) => {
+            println!("Error: Account is frozen.");
+        }
+
+        Err(BankError::SameAccount) => {
+            println!("Error: Source and destination accounts must be different.");
+        }
+    }
+}
 //----------------------------------------------------------------------------------------
 
 fn create_account(accounts: &mut Vec<Account>, next_id: &mut u64 ) { 
@@ -143,6 +287,59 @@ fn find_account_menu(accounts: &[Account]) {
     }
 }
 
+fn deposit_menu(accounts: &mut Vec<Account>, transactions: &mut Vec<Transaction>) {
+    let id = match read_number("Enter account ID: ") {
+        Some(value) => value,
+        None => return,
+    };
+
+    let amount = match read_number("Enter deposit amount: ") {
+        Some(value) => value,
+        None => return,
+    };
+
+    let result = deposit(accounts, transactions, id, amount);
+
+    show_result(result);
+}
+
+fn withdraw_menu(accounts: &mut Vec<Account>, transactions: &mut Vec<Transaction>) {
+    let id = match read_number("Enter account ID: ") {
+        Some(value) => value,
+        None => return,
+    };
+
+    let amount = match read_number("Enter withdrawal amount: ") {
+        Some(value) => value,
+        None => return,
+    };
+
+    let result = withdraw(accounts, transactions, id, amount);
+
+    show_result(result);
+}
+
+fn transfer_menu(accounts: &mut Vec<Account>, transactions: &mut Vec<Transaction>) {
+    let from_id = match read_number("Enter source account ID: ") {
+        Some(value) => value,
+        None => return,
+    };
+
+    let to_id = match read_number("Enter destination account ID: ") {
+        Some(value) => value,
+        None => return,
+    };
+
+    let amount = match read_number("Enter transfer amount: ") {
+        Some(value) => value,
+        None => return,
+    };
+
+    let result = transfer(accounts, transactions, from_id, to_id, amount);
+
+    show_result(result);
+}
+
 //---------------------------------------------------------------------------------------
 
 fn print_menu() {
@@ -191,11 +388,13 @@ fn main() {
              1 => create_account(&mut accounts, &mut next_id),
              2 => list_accounts(&accounts),
              3 => find_account_menu(&accounts),
+             5 => deposit_menu(&mut accounts, &mut transaction),
+             6 => withdraw_menu(&mut accounts, &mut transaction),
+             7 => transfer_menu(&mut accounts, &mut transaction),
              _ => {
-                println!(" Unknown option. Please enter a number from 0 to 13.");}
+                println!("Unknown option. Please enter a number from 0 to 13.");}
         }
-        thread::sleep(Duration::from_secs(2));
-            
+        thread::sleep(Duration::from_secs(2));     
     }
-
+    
 }
